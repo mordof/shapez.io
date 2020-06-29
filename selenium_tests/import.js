@@ -126,6 +126,7 @@ const getTileInfo = async () => {
             let hasFoundWidth = false;
             let hasFoundHeight = false;
 
+            // eslint-disable-next-line no-constant-condition
             while (true) {
                 moveMouse(curX, curY);
                 await waitForFrame();
