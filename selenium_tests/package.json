@@ -1,0 +1,16 @@
+{
+    "name": "selenium_tests",
+    "version": "1.0.0",
+    "description": "tests for in-browser functionality/regression tests",
+    "private": true,
+    "main": "main.js",
+    "scripts": {
+        "test": "jest --runInBand --verbose --silent=false"
+    },
+    "author": "tobspr",
+    "license": "private",
+    "dependencies": {
+        "jest": "^26.1.0",
+        "selenium-webdriver": "^4.0.0-alpha.7"
+    }
+}

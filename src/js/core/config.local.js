@@ -3,13 +3,13 @@ export default {
     /* dev:start */
     // -----------------------------------------------------------------------------------
     // Quickly enters the game and skips the main menu - good for fast iterating
-    // fastGameEnter: true,
+    fastGameEnter: true,
     // -----------------------------------------------------------------------------------
     // Skips any delays like transitions between states and such
-    // noArtificialDelays: true,
+    noArtificialDelays: true,
     // -----------------------------------------------------------------------------------
     // Disables writing of savegames, useful for testing the same savegame over and over
-    // disableSavegameWrite: true,
+    disableSavegameWrite: true,
     // -----------------------------------------------------------------------------------
     // Shows bounds of all entities
     // showEntityBounds: true,
@@ -33,7 +33,7 @@ export default {
     // rewardsInstant: true,
     // -----------------------------------------------------------------------------------
     // Unlocks all buildings
-    // allBuildingsUnlocked: true,
+    allBuildingsUnlocked: true,
     // -----------------------------------------------------------------------------------
     // Disables cost of bluepirnts
     // blueprintsNoCost: true,
@@ -42,7 +42,7 @@ export default {
     // upgradesNoCost: true,
     // -----------------------------------------------------------------------------------
     // Disables the dialog when completing a level
-    // disableUnlockDialog: true,
+    disableUnlockDialog: true,
     // -----------------------------------------------------------------------------------
     // Disables the simulation - This effectively pauses the game.
     // disableLogicTicks: true,
@@ -57,7 +57,7 @@ export default {
     // testTranslations: true,
     // -----------------------------------------------------------------------------------
     // Enables an inspector which shows information about the entity below the curosr
-    // enableEntityInspector: true,
+    enableEntityInspector: true,
     // -----------------------------------------------------------------------------------
     // Enables ads in the local build (normally they are deactivated there)
     // testAds: true,
@@ -66,7 +66,7 @@ export default {
     // disableMapOverview: true,
     // -----------------------------------------------------------------------------------
     // Disables the notification when there are new entries in the changelog since last played
-    // disableUpgradeNotification: true,
+    disableUpgradeNotification: true,
     // -----------------------------------------------------------------------------------
     // Makes belts almost infinitely fast
     // instantBelts: true,
