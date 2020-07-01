@@ -28,11 +28,26 @@ const getDriver = async () => {
 
 const injectHelpers = () => {
     const canvas = document.querySelector("canvas");
-    const Vector = globalRoot.camera.center.constructor;
+    window.Vector = globalRoot.camera.center.constructor;
     let config;
 
     window.timeout = async ms => {
         return new Promise(resolve => setTimeout(resolve, ms));
+    };
+
+    window.waitFor = async (cb, ms) => {
+        await new Promise(resolve => {
+            const hndl = setInterval(() => {
+                if (cb()) {
+                    clearInterval(hndl);
+                    resolve();
+                }
+            }, ms);
+        });
+    };
+
+    window.waitForFrame = async () => {
+        await new Promise(resolve => window.requestAnimationFrame(resolve));
     };
 
     window.getConfig = () => {
@@ -45,39 +60,64 @@ const injectHelpers = () => {
         return config;
     };
 
-    window.waitForFrame = async () => {
-        await new Promise(resolve => window.requestAnimationFrame(resolve));
-    };
-
     window.testLog = (...args) => {
         console.log("TESTLOG:", ...args);
     };
 
-    window.clickMouse = (x, y) => {
-        let mousedownEvent = new Event("mousedown");
-        mousedownEvent.pageX = x;
-        mousedownEvent.pageY = y;
-        mousedownEvent.clientX = x;
-        mousedownEvent.clientY = y;
-        mousedownEvent.offsetX = x;
-        mousedownEvent.offsetY = y;
-        mousedownEvent.button = 0;
-        canvas.dispatchEvent(mousedownEvent);
+    window.hitKey = key => {
+        const keyDownEvent = new Event("keydown");
+        keyDownEvent.keyCode = key.toUpperCase().charCodeAt(0);
+        window.dispatchEvent(keyDownEvent);
 
-        const mouseupEvent = new Event("mouseup");
-        mouseupEvent.pageX = x;
-        mouseupEvent.pageY = y;
-        mouseupEvent.clientX = x;
-        mouseupEvent.clientY = y;
-        mouseupEvent.offsetX = x;
-        mouseupEvent.offsetY = y;
-        mouseupEvent.button = 0;
-        window.dispatchEvent(mouseupEvent);
+        const keyUpEvent = new Event("keyup");
+        keyUpEvent.keyCode = key.toUpperCase().charCodeAt(0);
+        window.dispatchEvent(keyUpEvent);
     };
 
-    window.tileToPos = (tileX, tileY) => {
-        const worldPos = new Vector(tileX, tileY).toWorldSpaceCenterOfTile();
-        return globalRoot.camera.worldToScreen(worldPos);
+    window.mouseDown = (x, y) => {
+        const mouseDownEvent = new Event("mousedown");
+        mouseDownEvent.pageX = x;
+        mouseDownEvent.pageY = y;
+        mouseDownEvent.clientX = x;
+        mouseDownEvent.clientY = y;
+        mouseDownEvent.offsetX = x;
+        mouseDownEvent.offsetY = y;
+        mouseDownEvent.button = 0;
+        canvas.dispatchEvent(mouseDownEvent);
+    };
+
+    window.mouseUp = (x, y) => {
+        const mouseUpEvent = new Event("mouseup");
+        mouseUpEvent.pageX = x;
+        mouseUpEvent.pageY = y;
+        mouseUpEvent.clientX = x;
+        mouseUpEvent.clientY = y;
+        mouseUpEvent.offsetX = x;
+        mouseUpEvent.offsetY = y;
+        mouseUpEvent.button = 0;
+        window.dispatchEvent(mouseUpEvent);
+    };
+
+    window.clickMouse = (x, y) => {
+        mouseDown(x, y);
+        mouseUp(x, y);
+    };
+
+    window.coordIDToVec = id => {
+        const arr = id.split("|").map(parseFloat);
+        return new Vector(arr[0], arr[1]);
+    };
+
+    window.vecToCoordID = vec => {
+        return `${vec.x}|${vec.y}`;
+    };
+
+    window.tileToWorldSpace = (tileX, tileY) => {
+        return new Vector(tileX, tileY).toWorldSpaceCenterOfTile();
+    };
+
+    window.tileToScreenSpace = (tileX, tileY) => {
+        return globalRoot.camera.worldToScreen(tileToWorldSpace(tileX, tileY));
     };
 
     window.tileToChunk = (tileX, tileY) => {
@@ -88,49 +128,77 @@ const injectHelpers = () => {
         );
     };
 
-    window.chunkToTile = (chunkX, chunkY) => {
+    window.chunkToTile = (chunkX, chunkY, center = true) => {
         const chunkSize = getConfig().chunkSize;
-        return new Vector(chunkX * chunkSize, chunkY * chunkSize);
+        return new Vector(
+            chunkX * chunkSize + (center ? chunkSize / 2 : 0),
+            chunkY * chunkSize + (center ? chunkSize / 2 : 0)
+        );
     };
 
-    window.cameraToTile = async (tileX, tileY, waitUntilDone) => {
-        const screenPos = tileToPos(tileX, tileY);
-        globalRoot.camera.currentPan = screenPos;
+    window.moveCameraToTile = async (tileX, tileY, waitUntilDone) => {
+        const screenPos = tileToWorldSpace(tileX, tileY).floor();
+        globalRoot.camera.desiredCenter = screenPos;
 
         if (waitUntilDone) {
-            // eslint-disable-next-line no-constant-condition
-            while (true) {
-                await timeout(50);
-
-                if (globalRoot.camera.currentlyMoving === false) {
-                    break;
-                }
-            }
+            await waitFor(() => globalRoot.camera.desiredCenter === null, 50);
         }
     };
 
     window.spiralSearchChunks = async (chunkX, chunkY, testCB) => {
-        const startChunkX = chunkX;
-        const startChunkY = chunkY;
-        let curX = chunkX;
-        let curY = chunkY;
+        const startChunk = new Vector(chunkX, chunkY);
+        let cur = new Vector(chunkX, chunkY);
+        let spiralStart = new Vector(chunkX, chunkY);
         let spiralIter = 0;
-        let dirX = 1;
-        let dirY = 0;
+
+        let dirI = 0;
+        const dirs = [
+            new Vector(0, 0), // used for very beginning to go nowhere
+            new Vector(0, -1), // go up (spiral starts to the left of the last one, so we go up)
+            new Vector(1, 0), // go right
+            new Vector(0, 1), // go down
+            new Vector(-1, 0), // go left
+            new Vector(0, -1), // finish off spiral by going up again
+        ];
 
         let checkLimitIter = 0;
 
         // eslint-disable-next-line no-constant-condition
         while (true) {
-            let chunk = globalRoot.map.chunksById.get(`${curX}|${curY}`);
+            let chunk = globalRoot.map.chunksById.get(vecToCoordID(cur));
 
             if (chunk === undefined) {
-                const tileXY = chunkToTile(curX, curY);
-                await cameraToTile(tileXY.x, tileXY.y, true);
-                chunk = globalRoot.map.chunksById.get(`${curX}|${curY}`);
+                // chunk isn't loaded. we need to move the camera there
+                // so it'll load the chunk.
+                const tileXY = chunkToTile(cur.x, cur.y);
+                await moveCameraToTile(tileXY.x, tileXY.y, true);
+                chunk = globalRoot.map.chunksById.get(vecToCoordID(cur));
             }
 
-            const result = await new Promise(resolve => testCB(chunk, resolve));
+            const result = await testCB(chunk);
+
+            if (result) {
+                // we found what we're looking for
+                break;
+            }
+
+            cur.addInplace(dirs[dirI]);
+
+            if (Math.abs(cur.x - startChunk.x) > spiralIter || Math.abs(cur.y - startChunk.y) > spiralIter) {
+                // we've finished this stretch of the spiral path. time to bring it back
+                // in and change direction
+                cur.subInplace(dirs[dirI]);
+                dirI += 1;
+                cur.addInplace(dirs[dirI]);
+            }
+
+            if (cur.equals(spiralStart)) {
+                // back at the beginning of the spiral. Time to start the next spiral
+                spiralIter += 1;
+                dirI = 1;
+                cur.addInplace(new Vector(-1, 0));
+                spiralStart = cur.copy();
+            }
 
             checkLimitIter++;
 
@@ -139,13 +207,13 @@ const injectHelpers = () => {
     };
 
     window.clickTile = (tileX, tileY) => {
-        const screenPos = tileToPos(tileX, tileY);
+        const screenPos = tileToScreenSpace(tileX, tileY);
         moveMouse(screenPos.x, screenPos.y);
         clickMouse(screenPos.x, screenPos.y);
     };
 
     window.moveMouseToTile = (tileX, tileY) => {
-        const screenPos = tileToPos(tileX, tileY);
+        const screenPos = tileToScreenSpace(tileX, tileY);
         moveMouse(screenPos.x, screenPos.y);
     };
 

@@ -57,7 +57,7 @@ export default {
     // testTranslations: true,
     // -----------------------------------------------------------------------------------
     // Enables an inspector which shows information about the entity below the curosr
-    enableEntityInspector: true,
+    // enableEntityInspector: true,
     // -----------------------------------------------------------------------------------
     // Enables ads in the local build (normally they are deactivated there)
     // testAds: true,
