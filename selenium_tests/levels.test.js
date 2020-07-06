@@ -1,15 +1,16 @@
 require("./import");
-const { timeout, placeItem, findClosestResourcePatch, dragBelt, getHubGoals } = require("./helpers");
+const { timeout, placeItem, findClosestResourcePatch, dragBelt, getHubGoals } = require("./test_helpers");
 
-test("confirms completing level 1 works", async () => {
+test("level 1", async () => {
     expect.assertions(4);
 
     const circleShape = "CuCuCuCu";
 
     const patch = await findClosestResourcePatch({ shape: circleShape }, 0, 0);
+    const [[closest]] = patch;
 
-    await placeItem("miner", patch[0][0].x, patch[0][0].y);
-    await dragBelt(patch[0][0].x, patch[0][0].y - 1, -3, 1);
+    await placeItem("miner", closest.x, closest.y);
+    await dragBelt(closest.x, closest.y - 1, -3, 1);
 
     let nextItem = patch[0];
     let destY = 0;

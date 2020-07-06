@@ -42,10 +42,21 @@ const enumAngleToDirection = {
     270: enumDirection.left,
 };
 
-const toolRotations = {
-    belt: 0,
-    miner: 0,
+const toolVariantMax = {
+    belt: 1,
+    splitter: 3,
+    underground_belt: 2,
+    miner: 2,
+    cutter: 2,
+    rotator: 2,
+    stacker: 1,
+    mixer: 1,
+    painer: 4,
+    trash: 2,
 };
+
+const toolVariants = {};
+const toolRotations = {};
 
 const runScript = async (cb, ...args) => {
     const driver = await getDriver();
@@ -55,6 +66,33 @@ const runScript = async (cb, ...args) => {
 const runAsyncScript = async (cb, ...args) => {
     const driver = await getDriver();
     return await driver.executeAsyncScript(cb, ...args);
+};
+
+const getEntityAtTile = async (tileX, tileY) => {
+    return await runAsyncScript(
+        (tileX, tileY, cb) => {
+            getEntityAtTile(tileX, tileY).then(e => {
+                let { root: root1, ...entity } = e;
+                if (entity.components.Belt) {
+                    // BeltPath has a root reference we need to remove
+                    // in order to do that we need to completely rebuild
+                    // the object in that area so as to not damage the original
+                    // operating entity in the game
+                    entity.components = { ...entity.components };
+                    entity.components.Belt = { ...entity.components.Belt };
+
+                    // entityPath is circular references to the belts in the path.
+                    // ignoring this unless it's needed later, then we'll need to
+                    // figure out a better way to deal with that.
+                    let { root: root2, entityPath, ...assignedPath } = entity.components.Belt.assignedPath;
+                    entity.components.Belt.assignedPath = assignedPath;
+                }
+                cb(entity);
+            });
+        },
+        tileX,
+        tileY
+    );
 };
 
 const findClosestResourcePatch = async (resource, tileX, tileY, sortClosestToCenter = true) => {
@@ -132,29 +170,53 @@ const clickTile = async (tileX, tileY) => {
     );
 };
 
-const rotateItemTo = async (tool, direction) => {
-    let timesToRotate = 0;
+const changeVariantTo = async (tool, variant) => {
+    const max = toolVariantMax[tool];
 
-    if (enumDirectionToAngle[direction] < toolRotations[tool]) {
-        const amount = 360 - toolRotations[tool] - enumDirectionToAngle[direction];
-        timesToRotate = amount / 90;
-    } else if (enumDirectionToAngle[direction] > toolRotations[tool]) {
-        const amount = enumDirectionToAngle[direction] - toolRotations[tool];
-        timesToRotate = amount / 90;
+    if (max === 1) return; // there's only 1 variant. nothing to do.
+
+    const toolVariant = toolVariants[tool] || 1;
+    let timesToChange = 0;
+
+    if (variant < toolVariant) {
+        timesToChange = max - toolVariant + variant;
+    } else if (variant > toolVariant) {
+        timesToChange = variant - toolVariant;
     }
 
-    if (timesToRotate > 0) {
+    if (timesToChange > 0) {
         await runScript(times => {
             for (let i = 0; i < times; i++) {
-                hitKey("r");
+                hitKey("t");
             }
-        }, timesToRotate);
+        }, timesToChange);
+        toolVariants[tool] = variant;
     }
 };
 
-const placeItem = async (tool, tileX, tileY, facing = "top") => {
+const rotateItemTo = async (tool, direction) => {
+    const toolRotation = toolRotations[tool] || 0;
+
+    const timesToRotate = (enumDirectionToAngle[direction] - toolRotation) / 90;
+
+    if (timesToRotate !== 0) {
+        await runScript(
+            (times, holdShift) => {
+                for (let i = 0; i < times; i++) {
+                    hitKey("r", holdShift);
+                }
+            },
+            Math.abs(timesToRotate),
+            timesToRotate < 0
+        );
+        toolRotations[tool] = enumDirectionToAngle[direction];
+    }
+};
+
+const placeItem = async (tool, tileX, tileY, facing = "top", variant = 0) => {
     await clickToolbar(tool);
     await rotateItemTo(tool, facing);
+    await changeVariantTo(tool, variant);
     await clickTile(tileX, tileY);
 };
 
@@ -200,3 +262,4 @@ exports.findClosestResourcePatch = findClosestResourcePatch;
 exports.placeItem = placeItem;
 exports.dragBelt = dragBelt;
 exports.getHubGoals = getHubGoals;
+exports.getEntityAtTile = getEntityAtTile;
